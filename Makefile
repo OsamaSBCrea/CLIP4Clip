@@ -2,7 +2,7 @@
 .ONESHELL:
 
 OS := $(shell uname)
-PYTHON_ABSOLUTE := python3.8
+PYTHON_ABSOLUTE := python3.10
 
 VENV_DIR := .venv
 PYTHON := $(VENV_DIR)/bin/python
@@ -28,8 +28,6 @@ python.setup:
 		sudo apt install python3-setuptools; \
 		update-alternatives --install /usr/bin/python3 python3 /usr/bin/$(PYTHON_ABSOLUTE) 1 && update-alternatives --set python3 /usr/bin/$(PYTHON_ABSOLUTE)
 	fi
-	# $(PYTHON_ABSOLUTE) -m ensurepip
-	$(PYTHON_ABSOLUTE) -m pip install --upgrade setuptools
 
 download.msrvtt:
 	mkdir -p msrvtt_data
