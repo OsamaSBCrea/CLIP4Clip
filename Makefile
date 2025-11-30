@@ -8,7 +8,12 @@ VENV_DIR := .venv
 PYTHON := $(VENV_DIR)/bin/python
 PIP := $(VENV_DIR)/bin/pip
 
-install:
+all: python.setup install
+
+venv:
+	$(PYTHON_ABSOLUTE) -m venv $(VENV_DIR)
+
+install: venv
 	$(PIP) install --upgrade pip
 	$(PIP) install -r requirements.txt
 
