@@ -1,6 +1,7 @@
 .PHONY: install
 .ONESHELL:
 
+OS := $(shell uname)
 PYTHON_ABSOLUTE := python3.8
 
 VENV_DIR := .venv
