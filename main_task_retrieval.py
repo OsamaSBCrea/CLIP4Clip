@@ -14,11 +14,10 @@ from modules.tokenization_clip import SimpleTokenizer as ClipTokenizer
 from modules.file_utils import PYTORCH_PRETRAINED_BERT_CACHE
 from modules.modeling import CLIP4Clip
 from modules.optimization import BertAdam
+from tqdm import tqdm
 
 from util import parallel_apply, get_logger
 from dataloaders.data_dataloaders import DATALOADER_DICT
-
-torch.distributed.init_process_group(backend="nccl")
 
 global logger
 
@@ -49,6 +48,7 @@ def get_args(description='CLIP4Clip on Retrieval Task'):
     parser.add_argument('--hard_negative_rate', type=float, default=0.5, help='rate of intra negative sample')
     parser.add_argument('--negative_weighting', type=int, default=1, help='Weight the loss for intra negative')
     parser.add_argument('--n_pair', type=int, default=1, help='Num of pair to output from data loader')
+    parser.add_argument('--distributed', type=bool, default=False, help='Use distributed training or not')
 
     parser.add_argument("--output_dir", default=None, type=str, required=True,
                         help="The output directory where the model predictions and checkpoints will be written.")
@@ -127,15 +127,17 @@ def set_seed_logger(args):
     os.environ['PYTHONHASHSEED'] = str(args.seed)
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
-    torch.cuda.manual_seed(args.seed)
-    torch.cuda.manual_seed_all(args.seed)  # if you are using multi-GPU.
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(args.seed)
+        torch.cuda.manual_seed_all(args.seed)  # if you are using multi-GPU.
     torch.backends.cudnn.benchmark = False
     torch.backends.cudnn.deterministic = True
 
-    world_size = torch.distributed.get_world_size()
-    torch.cuda.set_device(args.local_rank)
+    world_size = torch.distributed.get_world_size() if args.distributed else 1
+    if torch.cuda.is_available():
+        torch.cuda.set_device(args.local_rank)
     args.world_size = world_size
-    rank = torch.distributed.get_rank()
+    rank = torch.distributed.get_rank() if args.distributed else 0
     args.rank = rank
 
     if not os.path.exists(args.output_dir):
@@ -154,8 +156,9 @@ def init_device(args, local_rank):
     global logger
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu", local_rank)
+    device = torch.device("mps") if torch.backends.mps.is_available() else device
 
-    n_gpu = torch.cuda.device_count()
+    n_gpu = torch.cuda.device_count() if torch.cuda.is_available() else 1
     logger.info("device: {} n_gpu: {}".format(device, n_gpu))
     args.n_gpu = n_gpu
 
@@ -210,8 +213,9 @@ def prep_optimizer(args, model, num_train_optimization_steps, device, n_gpu, loc
                          schedule='warmup_cosine', b1=0.9, b2=0.98, e=1e-6,
                          t_total=num_train_optimization_steps, weight_decay=weight_decay,
                          max_grad_norm=1.0)
-
-    model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[local_rank],
+    
+    if args.distributed:
+        model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[local_rank],
                                                       output_device=local_rank, find_unused_parameters=True)
 
     return optimizer, scheduler, model
@@ -256,11 +260,15 @@ def train_epoch(epoch, args, model, train_dataloader, device, n_gpu, optimizer, 
     log_step = args.n_display
     start_time = time.time()
     total_loss = 0
+    
+    iterator = tqdm(train_dataloader, desc=f"Training Epoch {epoch+1}", disable=(args.local_rank not in [-1, 0]))
 
-    for step, batch in enumerate(train_dataloader):
+    for step, batch in enumerate(iterator):
         if n_gpu == 1:
             # multi-gpu does scattering it-self
-            batch = tuple(t.to(device=device, non_blocking=True) for t in batch)
+            # MPS doesn't support non_blocking=True, use blocking transfer for MPS
+            non_blocking = device.type != 'mps'
+            batch = tuple(t.to(device=device, non_blocking=non_blocking) for t in batch)
 
         input_ids, input_mask, segment_ids, video, video_mask = batch
         loss = model(input_ids, segment_ids, input_mask, video, video_mask)
@@ -271,6 +279,7 @@ def train_epoch(epoch, args, model, train_dataloader, device, n_gpu, optimizer, 
             loss = loss / args.gradient_accumulation_steps
 
         loss.backward()
+        iterator.set_postfix(loss=float(loss))
 
         total_loss += float(loss)
         if (step + 1) % args.gradient_accumulation_steps == 0:
@@ -462,6 +471,10 @@ def eval_epoch(args, model, test_dataloader, device, n_gpu):
 def main():
     global logger
     args = get_args()
+    
+    if args.distributed:
+        torch.distributed.init_process_group(backend="gloo")
+    
     args = set_seed_logger(args)
     device, n_gpu = init_device(args, args.local_rank)
 
@@ -551,7 +564,8 @@ def main():
         
         global_step = 0
         for epoch in range(resumed_epoch, args.epochs):
-            train_sampler.set_epoch(epoch)
+            if args.distributed:
+                train_sampler.set_epoch(epoch)
             tr_loss, global_step = train_epoch(epoch, args, model, train_dataloader, device, n_gpu, optimizer,
                                                scheduler, global_step, local_rank=args.local_rank)
             if args.local_rank == 0:

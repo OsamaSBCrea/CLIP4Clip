@@ -1,2 +1,10 @@
 .git
 .idea
+.venv
+msrvtt_data
+.DS_Store
+compressed
+__pycache__
+ckpts
+ViT-B-16.pt
+ViT-B-32.pt

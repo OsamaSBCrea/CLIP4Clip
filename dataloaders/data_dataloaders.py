@@ -21,7 +21,7 @@ def dataloader_msrvtt_train(args, tokenizer):
         slice_framepos=args.slice_framepos,
     )
 
-    train_sampler = torch.utils.data.distributed.DistributedSampler(msrvtt_dataset)
+    train_sampler = torch.utils.data.distributed.DistributedSampler(msrvtt_dataset) if args.distributed else None
     dataloader = DataLoader(
         msrvtt_dataset,
         batch_size=args.batch_size // args.n_gpu,
@@ -32,7 +32,7 @@ def dataloader_msrvtt_train(args, tokenizer):
         drop_last=True,
     )
 
-    return dataloader, len(msrvtt_dataset), train_sampler
+    return dataloader, len(msrvtt_dataset), dataloader.sampler
 
 def dataloader_msrvtt_test(args, tokenizer, subset="test"):
     msrvtt_testset = MSRVTT_DataLoader(

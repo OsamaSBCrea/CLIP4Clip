@@ -256,7 +256,10 @@ class AllGather(torch.autograd.Function):
     @staticmethod
     def forward(ctx, tensor, args):
         output = [torch.empty_like(tensor) for _ in range(args.world_size)]
-        torch.distributed.all_gather(output, tensor)
+        if args.distributed:
+            torch.distributed.all_gather(output, tensor)
+        else:
+            output[0] = tensor
         ctx.rank = args.rank
         ctx.batch_size = tensor.shape[0]
         return torch.cat(output, dim=0)

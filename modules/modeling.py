@@ -216,7 +216,8 @@ class CLIP4Clip(CLIP4ClipPreTrainedModel):
             if key in clip_state_dict:
                 del clip_state_dict[key]
 
-        convert_weights(self.clip)
+        if self.task_config.fp16:
+            convert_weights(self.clip)
         # <=== End of CLIP Encoders
 
         self.sim_header = 'meanP'
@@ -387,7 +388,8 @@ class CLIP4Clip(CLIP4ClipPreTrainedModel):
             visual_output = allgather(visual_output, self.task_config)
             video_mask = allgather(video_mask, self.task_config)
             sequence_output = allgather(sequence_output, self.task_config)
-            torch.distributed.barrier()
+            if self.task_config.distributed:
+                torch.distributed.barrier()
 
         visual_output = visual_output / visual_output.norm(dim=-1, keepdim=True)
         visual_output = self._mean_pooling_for_similarity_visual(visual_output, video_mask)
@@ -436,6 +438,8 @@ class CLIP4Clip(CLIP4ClipPreTrainedModel):
 
             cross_output, pooled_output, concat_mask = \
                 self._get_cross_output(sequence_output_l, visual_output_r, attention_mask_l, video_mask_r)
+            # # Ensure tensor is contiguous for MPS compatibility
+            # pooled_output = pooled_output.contiguous()
             retrieve_logits_row = self.similarity_dense(pooled_output).squeeze(-1).view(step_truth, b_visual)
 
             retrieve_logits_list.append(retrieve_logits_row)

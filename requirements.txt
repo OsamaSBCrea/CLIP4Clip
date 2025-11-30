@@ -1,0 +1,11 @@
+torch==1.13
+torchvision
+ftfy
+regex
+tqdm
+opencv-python
+boto3
+requests
+pandas
+ffmpeg
+ipykernel
