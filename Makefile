@@ -9,6 +9,20 @@ install:
 	$(PIP) install --upgrade pip
 	$(PIP) install -r requirements.txt
 
+download.msrvtt:
+	mkdir -p msrvtt_data
+	cd msrvtt_data
+	wget https://github.com/ArrowLuo/CLIP4Clip/releases/download/v0.0/msrvtt_data.zip
+	unzip msrvtt_data.zip -d .
+	rm msrvtt_data.zip
+
+	wget https://www.robots.ox.ac.uk/~maxbain/frozen-in-time/data/MSRVTT.zip
+	unzip MSRVTT.zip
+
+download.clip:
+	wget -P ./modules https://openaipublic.azureedge.net/clip/models/40d365715913c9da98579312b702a82c18be219cc2a73407c4526f58eba950af/ViT-B-32.pt
+	wget -P ./modules https://openaipublic.azureedge.net/clip/models/5806e77cd80f8b59890b7e101eabd078d9fb84e6937f9e85e4ecb61988df416f/ViT-B-16.pt
+
 run.msrvtt.dist:
 	DATA_PATH=./msrvtt_data
 	$(PYTHON) -m torch.distributed.launch --nproc_per_node=1 \
