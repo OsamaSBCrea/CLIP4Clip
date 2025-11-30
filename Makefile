@@ -33,11 +33,12 @@ download.msrvtt:
 	mkdir -p msrvtt_data
 	cd msrvtt_data
 	wget https://github.com/ArrowLuo/CLIP4Clip/releases/download/v0.0/msrvtt_data.zip
-	unzip msrvtt_data.zip -d .
+	unzip -j msrvtt_data.zip
 	rm msrvtt_data.zip
 
 	wget https://www.robots.ox.ac.uk/~maxbain/frozen-in-time/data/MSRVTT.zip
 	unzip MSRVTT.zip
+	rm MSRVTT.zip
 
 download.clip:
 	wget -P ./modules https://openaipublic.azureedge.net/clip/models/40d365715913c9da98579312b702a82c18be219cc2a73407c4526f58eba950af/ViT-B-32.pt
