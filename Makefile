@@ -1,6 +1,8 @@
 .PHONY: install
 .ONESHELL:
 
+PYTHON_ABSOLUTE := python3.8
+
 VENV_DIR := .venv
 PYTHON := $(VENV_DIR)/bin/python
 PIP := $(VENV_DIR)/bin/pip
@@ -8,6 +10,20 @@ PIP := $(VENV_DIR)/bin/pip
 install:
 	$(PIP) install --upgrade pip
 	$(PIP) install -r requirements.txt
+
+python.setup:
+	if [ "$(OS)" = "Linux" ]; then \
+		sudo add-apt-repository ppa:deadsnakes/ppa -y; \
+		sudo apt update; \
+		sudo apt install $(PYTHON_ABSOLUTE); \
+		sudo apt install python3-venv; \
+		sudo apt install python3-dev; \
+		sudo apt install python3-pip; \
+		sudo apt install python3-setuptools; \
+		update-alternatives --install /usr/bin/python3 python3 /usr/bin/$(PYTHON_ABSOLUTE) 1 && update-alternatives --set python3 /usr/bin/$(PYTHON_ABSOLUTE)
+	fi
+	# $(PYTHON_ABSOLUTE) -m ensurepip
+	$(PYTHON_ABSOLUTE) -m pip install --upgrade setuptools
 
 download.msrvtt:
 	mkdir -p msrvtt_data
