@@ -47,16 +47,20 @@ download.clip:
 	wget -P ./modules https://openaipublic.azureedge.net/clip/models/40d365715913c9da98579312b702a82c18be219cc2a73407c4526f58eba950af/ViT-B-32.pt
 	wget -P ./modules https://openaipublic.azureedge.net/clip/models/5806e77cd80f8b59890b7e101eabd078d9fb84e6937f9e85e4ecb61988df416f/ViT-B-16.pt
 
+compress:
+	mkdir -p msrvtt_data/MSRVTT/compressed
+	$(PYTHON) preprocess/compress_video.py --input_root ./msrvtt_data/MSRVTT/videos/all --output_root ./msrvtt_data/MSRVTT/compressed
+
 run.msrvtt.dist:
 	DATA_PATH=./msrvtt_data
 	gpus_count=$$(nvidia-smi --query-gpu=name --format=csv,noheader | wc -l)
 	$(PYTHON) -m torch.distributed.launch --nproc_per_node=$$gpus_count \
 		main_task_retrieval.py --do_train --num_thread_reader=0 \
-		--distributed --epochs=5 --batch_size=128 --n_display=1 \
+		--distributed=true --epochs=5 --batch_size=32 --n_display=1 \
 		--train_csv $${DATA_PATH}/MSRVTT_train.9k.csv \
 		--val_csv $${DATA_PATH}/MSRVTT_JSFUSION_test.csv \
 		--data_path $${DATA_PATH}/MSRVTT_data.json \
-		--features_path $${DATA_PATH}/MSRVTT/videos/all \
+		--features_path $${DATA_PATH}/MSRVTT/compressed \
 		--output_dir ckpts/ckpt_msrvtt_retrieval_looseType \
 		--lr 1e-4 --max_words 32 --max_frames 12 --batch_size_val 16 \
 		--datatype msrvtt --expand_msrvtt_sentences  \
